@@ -1,0 +1,299 @@
+<!--
+Prototipo: Teclado pictográfico accesible para escribir direcciones de correo
+Single-file HTML/CSS/JS
+Características:
+- Teclado visual con teclas grandes (A-Z, 0-9, @, ., -, _)
+- Modo Pictogramas (usa emoji como marcador, puedes reemplazarlos por imágenes)
+- Soporte para lectura por voz (SpeechSynthesis) y anuncio ARIA
+- Modo "Scanning" (escaneo automático) para control con un botón (switch scanning)
+- Modo Morse básico: usuario entra puntos/guiones y traduce a letras
+- Fallback: si el dispositivo tiene teclado físico, se puede escribir directamente en el input
+- Todo funciona sin dependencias externas. Diseñado para ser simple y adaptable a celulares básicos.
+
+Instrucciones rápidas para probar:
+1. Abre este archivo en un navegador (Chrome, Firefox, Edge, Safari).
+2. Prueba escribir usando el mouse/touch: pulsa las teclas pictográficas.
+3. Activa "Scanning" y usa el botón grande "Seleccionar (Switch)" para elegir la tecla resaltada.
+4. Activa "Morse" y usa Dot/Dash/Aceptar para construir letras.
+5. Usa los controles de accesibilidad (voz, tamaño de tecla).
+
+Puedes personalizar pictogramas (reemplaza los emoji por imágenes) o añadir soporte de backend para crear cuentas.
+-->
+
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Teclado pictográfico accesible — Prototipo</title>
+<style>
+  :root{
+    --key-size: 64px;
+    --gap: 10px;
+    --bg: #f4f6f8;
+    --key-bg: #ffffff;
+    --accent: #0b78d1;
+    --focus: #ffd54f;
+    --radius: 12px;
+    --font-size: 18px;
+  }
+  html,body{height:100%;margin:0;font-family:system-ui,Segoe UI,Helvetica,Arial;color:#1a1a1a;background:var(--bg)}
+  .container{max-width:980px;margin:14px auto;padding:14px}
+  h1{font-size:20px;margin:0 0 10px}
+  p.lead{margin:6px 0 18px;color:#333}
+  .panel{background:linear-gradient(#fff,#fbfdff);padding:12px;border-radius:12px;box-shadow:0 1px 6px rgba(10,10,30,0.06)}
+  .display{display:flex;gap:8px;align-items:center;margin-bottom:12px}
+  .email-input{flex:1;padding:12px;border-radius:10px;border:2px solid #e8eef6;background:#fff;font-size:20px}
+  .controls{display:flex;gap:8px;flex-wrap:wrap}
+  .btn{padding:10px 12px;border-radius:10px;border:none;background:var(--accent);color:#fff;font-weight:600;cursor:pointer}
+  .btn.secondary{background:#e0e7ef;color:#0b78d1}
+  .btn.large{padding:14px 18px;font-size:18px}
+
+  .keyboard{display:grid;grid-template-columns:repeat(10,1fr);gap:var(--gap);margin-top:12px}
+  .key{height:var(--key-size);display:flex;align-items:center;justify-content:center;border-radius:10px;background:var(--key-bg);box-shadow:0 2px 0 rgba(0,0,0,0.04);font-size:20px;user-select:none;border:2px solid transparent}
+  .key:active{transform:translateY(1px)}
+  .key.small{height:48px;font-size:16px}
+  .key.pictogram{font-size:22px}
+  .key[aria-pressed="true"]{outline:3px solid var(--focus)}
+  .key.highlight{box-shadow:0 0 0 3px rgba(11,120,209,0.14);border-color:var(--accent)}
+  .status{margin-top:10px;font-size:14px;color:#333}
+  .options{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+  .slider{display:flex;gap:8px;align-items:center}
+  .morse{display:flex;gap:8px;align-items:center;margin-top:8px}
+  .morse button{padding:12px;border-radius:10px;border:2px solid #ddd;background:#fff}
+  footer{margin-top:14px;color:#666;font-size:13px}
+  @media (max-width:720px){:root{--key-size:56px;--font-size:16px}.keyboard{grid-template-columns:repeat(8,1fr)} }
+  @media (max-width:420px){:root{--key-size:48px}.keyboard{grid-template-columns:repeat(6,1fr)}}
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Teclado pictográfico accesible</h1>
+  <p class="lead">Prototipo para escribir direcciones de correo usando pictogramas, scanning (switch), y entrada Morse. Diseñado para usuarios con autismo, usuarios no verbales y dispositivos básicos.</p>
+
+  <div class="panel" role="region" aria-label="Área de teclado pictográfico">
+    <div class="display">
+      <input id="email" class="email-input" aria-label="Campo de correo electrónico" placeholder="ejemplo@dominio.com" autocomplete="off">
+      <button id="clear" class="btn secondary" aria-label="Limpiar campo">Limpiar</button>
+      <button id="submit" class="btn" aria-label="Enviar/Usar correo">Usar</button>
+    </div>
+
+    <div class="controls">
+      <div class="options">
+        <button id="toggleVoice" class="btn secondary" aria-pressed="false">Voz: OFF</button>
+        <button id="togglePict" class="btn secondary" aria-pressed="false">Pictogramas: OFF</button>
+        <button id="toggleScan" class="btn" aria-pressed="false">Scanning: OFF</button>
+        <button id="toggleMorse" class="btn secondary" aria-pressed="false">Morse: OFF</button>
+      </div>
+      <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+        <label for="keySize">Tamaño tecla</label>
+        <input id="keySize" type="range" min="40" max="90" value="64">
+      </div>
+    </div>
+
+    <div id="kbdWrap" class="keyboard" role="application" aria-label="Teclado pictográfico">
+      <!-- Las teclas se generan con JS -->
+    </div>
+
+    <div class="morse" aria-hidden="true" id="morsePanel">
+      <div>Modo Morse:</div>
+      <button id="dot" aria-label="Punto">●</button>
+      <button id="dash" aria-label="Guion">—</button>
+      <button id="morseAccept" aria-label="Aceptar carácter">Aceptar</button>
+      <button id="morseClear" aria-label="Limpiar morse">Borrar</button>
+      <div id="morseBuffer" style="min-width:160px;padding:8px;background:#fff;border-radius:8px;border:1px solid #ddd">Buffer: <span id="morseText"></span></div>
+    </div>
+
+    <div style="display:flex;gap:8px;align-items:center;margin-top:10px">
+      <button id="switchSelect" class="btn large" aria-label="Seleccionar (switch)">Seleccionar (Switch)</button>
+      <div class="status" id="status">Estado: listo</div>
+    </div>
+
+    <div class="status" id="announcer" aria-live="polite" style="opacity:0;height:1px;overflow:hidden"> </div>
+
+  </div>
+
+  <footer>Prototipo — personalízalo para reemplazar pictogramas por imágenes o para integrarlo a tu flujo de registro.</footer>
+</div>
+
+<script>
+// --- Configuración básica ---
+const keys = [
+  // 26 letras A-Z
+  ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split(''),
+  // números
+  ...'0123456789'.split(''),
+  // símbolos necesarios para emails
+  '@', '.', '-', '_'
+];
+
+const pictogramMap = {
+  '@':'📧', '.':'⚫', '-':'➖', '_':'▭'
+};
+
+let usePict = false;
+let useVoice = false;
+let scanning = false;
+let morseMode = false;
+let scanIndex = 0;
+let scanInterval = null;
+let scanDelay = 1200; // ms
+
+const emailInput = document.getElementById('email');
+const kbdWrap = document.getElementById('kbdWrap');
+const status = document.getElementById('status');
+const announcer = document.getElementById('announcer');
+
+// --- Speech helper ---
+function speak(text){
+  if(!useVoice || !('speechSynthesis' in window)) return;
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = 'es-ES';
+  window.speechSynthesis.cancel();
+  window.speechSynthesis.speak(u);
+}
+
+function announce(text){
+  announcer.textContent = text; // aria-live
+  speak(text);
+}
+
+// --- Render keys ---
+function renderKeys(){
+  kbdWrap.innerHTML = '';
+  keys.forEach((k, i)=>{
+    const btn = document.createElement('button');
+    btn.className = 'key';
+    btn.type = 'button';
+    btn.setAttribute('role','button');
+    btn.dataset.value = k;
+    btn.id = 'key-'+i;
+    btn.tabIndex = 0;
+    btn.setAttribute('aria-label', (k===' ' ? 'espacio' : k));
+    if(usePict && pictogramMap[k]){
+      btn.innerHTML = `<div class='key-content pictogram'>${pictogramMap[k]}<div style="font-size:12px;margin-top:6px">${k}</div></div>`;
+    } else {
+      btn.textContent = k;
+    }
+    btn.addEventListener('click', ()=>{ onKeyPress(k); });
+    btn.addEventListener('keydown', (e)=>{ if(e.key==='Enter' || e.key===' ') onKeyPress(k); });
+    kbdWrap.appendChild(btn);
+  });
+  // add backspace and space
+  const back = document.createElement('button'); back.className='key small'; back.textContent='⌫'; back.id='back'; back.type='button'; back.addEventListener('click',()=>{ backspace(); });
+  const space = document.createElement('button'); space.className='key'; space.style.gridColumn = 'span 4'; space.textContent='(espacio)'; space.id='space'; space.addEventListener('click',()=>{ onKeyPress(' '); });
+  kbdWrap.appendChild(back);
+  kbdWrap.appendChild(space);
+}
+
+function onKeyPress(ch){
+  if(morseMode) return; // bloquear pulsado directo
+  emailInput.value += ch;
+  announce('Añadido ' + (ch===' ' ? 'espacio' : ch));
+}
+
+function backspace(){
+  const v = emailInput.value;
+  emailInput.value = v.slice(0,-1);
+  announce('Borrado último carácter');
+}
+
+// --- Controls ---
+document.getElementById('clear').addEventListener('click', ()=>{ emailInput.value=''; announce('Campo limpiado'); });
+document.getElementById('submit').addEventListener('click', ()=>{ announce('Correo listo: '+emailInput.value); alert('Usar correo: '+emailInput.value); });
+
+// toggles
+const tVoice = document.getElementById('toggleVoice');
+const tPict = document.getElementById('togglePict');
+const tScan = document.getElementById('toggleScan');
+const tMorse = document.getElementById('toggleMorse');
+
+tVoice.addEventListener('click', ()=>{ useVoice = !useVoice; tVoice.textContent = 'Voz: ' + (useVoice? 'ON':'OFF'); tVoice.setAttribute('aria-pressed', useVoice); announce('Voz ' + (useVoice? 'activada':'desactivada')); });
+
+tPict.addEventListener('click', ()=>{ usePict = !usePict; tPict.textContent = 'Pictogramas: ' + (usePict? 'ON':'OFF'); tPict.setAttribute('aria-pressed', usePict); renderKeys(); announce('Pictogramas ' + (usePict? 'activados':'desactivados')); });
+
+tMorse.addEventListener('click', ()=>{ morseMode = !morseMode; tMorse.textContent = 'Morse: ' + (morseMode? 'ON':'OFF'); tMorse.setAttribute('aria-pressed', morseMode); document.getElementById('morsePanel').ariaHidden = !morseMode; document.getElementById('morsePanel').style.display = morseMode? 'flex':'none'; announce('Modo morse ' + (morseMode? 'activado':'desactivado')); });
+
+// Scanning logic
+
+tScan.addEventListener('click', ()=>{
+  scanning = !scanning;
+  tScan.textContent = 'Scanning: ' + (scanning? 'ON':'OFF');
+  tScan.setAttribute('aria-pressed', scanning);
+  if(scanning) startScanning(); else stopScanning();
+  announce('Scanning ' + (scanning? 'activado':'desactivado'));
+});
+
+function startScanning(){
+  // resaltar teclas en secuencia
+  const btns = Array.from(kbdWrap.querySelectorAll('.key'));
+  scanIndex = -1;
+  scanInterval = setInterval(()=>{
+    if(scanIndex>=0) btns[scanIndex].classList.remove('highlight');
+    scanIndex = (scanIndex + 1) % btns.length;
+    btns[scanIndex].classList.add('highlight');
+    announce('Resaltado ' + btns[scanIndex].dataset.value || btns[scanIndex].textContent);
+  }, scanDelay);
+}
+function stopScanning(){
+  clearInterval(scanInterval); scanInterval = null;
+  const btns = Array.from(kbdWrap.querySelectorAll('.key'));
+  btns.forEach(b=>b.classList.remove('highlight'));
+}
+
+// Switch select button (simula un solo switch)
+document.getElementById('switchSelect').addEventListener('click', ()=>{
+  if(!scanning){ announce('Scanning no está activado.'); return; }
+  const btns = Array.from(kbdWrap.querySelectorAll('.key'));
+  const sel = btns[scanIndex];
+  if(sel) {
+    const val = sel.dataset.value || sel.textContent;
+    // si es back o space
+    if(sel.id === 'back') backspace();
+    else if(sel.id === 'space') onKeyPress(' ');
+    else onKeyPress(val);
+    announce('Seleccionado ' + (val||sel.textContent));
+  }
+});
+
+// Morse input implementation (básico)
+let morseBuffer = '';
+const morseMap = {
+  '.-':'A','-...':'B','-.-.':'C','-..':'D','.':'E','..-.':'F','--.':'G','....':'H','..':'I','.---':'J','-.-':'K','.-..':'L','--':'M','-.':'N','---':'O','.--.':'P','--.-':'Q','.-.':'R','...':'S','-':'T','..-':'U','...-':'V','.--':'W','-..-':'X','-.--':'Y','--..':'Z',
+  '-----':'0','.----':'1','..---':'2','...--':'3','....-':'4','.....':'5','-....':'6','--...':'7','---..':'8','----.':'9'
+};
+
+document.getElementById('dot').addEventListener('click', ()=>{ morseBuffer += '.'; updateMorseUI(); announce('Punto'); });
+document.getElementById('dash').addEventListener('click', ()=>{ morseBuffer += '-'; updateMorseUI(); announce('Guion'); });
+document.getElementById('morseAccept').addEventListener('click', ()=>{ const ch = morseMap[morseBuffer]; if(ch){ emailInput.value += ch; announce('Añadido ' + ch); } else announce('Código no reconocido: ' + morseBuffer); morseBuffer=''; updateMorseUI(); });
+document.getElementById('morseClear').addEventListener('click', ()=>{ morseBuffer=''; updateMorseUI(); announce('Buffer morse limpiado'); });
+function updateMorseUI(){ document.getElementById('morseText').textContent = morseBuffer || '(vacío)'; }
+
+// key size control
+const keySize = document.getElementById('keySize');
+keySize.addEventListener('input', ()=>{ document.documentElement.style.setProperty('--key-size', keySize.value+'px'); });
+
+// initialize
+renderKeys(); document.getElementById('morsePanel').style.display='none';
+
+// Accessibility: keyboard shortcuts
+window.addEventListener('keydown', (e)=>{
+  if(e.key === 'Backspace') {
+    backspace();
+  }
+  if(e.ctrlKey && e.key.toLowerCase()==='m'){
+    morseMode = !morseMode; tMorse.textContent = 'Morse: ' + (morseMode? 'ON':'OFF'); document.getElementById('morsePanel').style.display = morseMode? 'flex':'none'; announce('Modo morse ' + (morseMode? 'activado':'desactivado'));
+  }
+});
+
+// Progressive enhancement: si el dispositivo tiene teclado físico, permitir escribir normalmente
+emailInput.addEventListener('input', ()=>{ announce('Entrada manual: ' + emailInput.value); });
+
+// click en keys generadas por JS: delegación para actualizar aria-live
+kbdWrap.addEventListener('focusin', (e)=>{ if(e.target.classList.contains('key')) announce('Foco en ' + (e.target.dataset.value || e.target.textContent)); });
+
+// Evitar zoom accidental y mejorar usabilidad en feature phones: añadir event listeners básicos
+// FIN
+</script>
+</body>
+</html>

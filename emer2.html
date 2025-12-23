@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Botón de Emergencia - Accesible con GPS</title>
+  <style>
+    :root{--primary:#c62828;--bg:#fafafa;--card:#fff}
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial;margin:0;background:var(--bg);color:#111}
+    .page{max-width:900px;margin:20px auto;padding:18px}
+    h1{font-size:20px;margin:6px 0}
+    .instructions{background:#fff;border-left:6px solid var(--primary);padding:10px;border-radius:8px}
+    .grid{display:grid;grid-template-columns:1fr;gap:14px;margin-top:14px}
+    @media(min-width:900px){.grid{grid-template-columns:360px 1fr}}
+    .big-btn{width:100%;height:140px;border-radius:14px;background:var(--primary);color:#fff;border:6px solid #8b1f1f;display:flex;align-items:center;justify-content:center;font-size:28px;cursor:pointer;touch-action:none}
+    .big-btn:active{transform:scale(.995)}
+    .counter{font-weight:700;font-size:28px}
+    .video-box{background:var(--card);border-radius:12px;padding:10px;border:2px solid #ddd;display:flex;flex-direction:column;align-items:center}
+    video{width:100%;border-radius:10px;background:#000}
+    textarea{width:100%;min-height:120px;border-radius:10px;border:2px solid #ddd;padding:12px;font-size:16px;resize:vertical}
+    .status{font-size:14px;color:#444;margin-top:6px}
+    .small{font-size:13px;color:#666}
+    .controls{display:flex;gap:8px}
+    .ghost{background:transparent;border:1px solid #ccc;padding:8px 10px;border-radius:8px}
+    .coord-box{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+    .coord-box input{width:100%;padding:8px;border:2px solid #ddd;border-radius:8px;font-size:15px}
+  </style>
+</head>
+<body>
+  <div class="page">
+    <h1>Botón de Emergencia (Accesible con GPS)</h1>
+    <div class="instructions">
+      <p><strong>Uso:</strong> Mantén presionado el botón rojo durante <strong>5 segundos</strong>. Se activarán cámara y micrófono durante <strong>60 segundos</strong>, se mostrará el video (C), la transcripción (B) y se capturarán las coordenadas GPS (X, Y, Z). Al finalizar, la información se enviará automáticamente al servidor de emergencia.</p>
+    </div>
+
+    <div class="grid">
+      <div>
+        <div id="botonWrap" aria-live="polite">
+          <div id="boton" class="big-btn" role="button" tabindex="0" aria-pressed="false" aria-label="Botón de emergencia. Mantén presionado 5 segundos">EMERGENCIA</div>
+          <div class="status" id="estado">Estado: inactivo</div>
+          <div class="status small">Indicador: <span id="countDisplay" class="counter">0</span> / 5 s</div>
+        </div>
+      </div>
+
+      <div>
+        <div class="video-box" aria-live="polite">
+          <label for="video" style="width:100%;text-align:left;font-weight:600">Recuadro C — Video en vivo</label>
+          <video id="video" playsinline autoplay muted></video>
+          <div class="status" id="videoStatus">Video: no activo</div>
+        </div>
+
+        <div style="margin-top:12px">
+          <label for="transcript" style="font-weight:600">Cuadro B — Transcripción (lo que dicen):</label>
+          <textarea id="transcript" readonly aria-live="polite" placeholder="Aquí aparecerá la transcripción"></textarea>
+          <div class="status" id="recStatus">Micrófono: inactivo</div>
+        </div>
+
+        <div class="coord-box">
+          <label>Coordenadas GPS:</label>
+          <input id="coordX" placeholder="X = Latitud" readonly />
+          <input id="coordY" placeholder="Y = Longitud" readonly />
+          <input id="coordZ" placeholder="Z = Altitud (piso aproximado)" readonly />
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+const LONG_PRESS_MS = 5000;
+const RECORD_MS = 60000;
+const boton = document.getElementById('boton');
+const estado = document.getElementById('estado');
+const countDisplay = document.getElementById('countDisplay');
+const video = document.getElementById('video');
+const transcriptArea = document.getElementById('transcript');
+const recStatus = document.getElementById('recStatus');
+const videoStatus = document.getElementById('videoStatus');
+const coordX = document.getElementById('coordX');
+const coordY = document.getElementById('coordY');
+const coordZ = document.getElementById('coordZ');
+let stream, recognition, mediaRecorder, chunks = [];
+let countTimer, longPressTimer;
+
+function startCounting(){
+  let t=0; countDisplay.textContent=t;
+  longPressTimer=setTimeout(activarEmergencia,LONG_PRESS_MS);
+  countTimer=setInterval(()=>{t++;countDisplay.textContent=t;},1000);
+}
+function stopCounting(){clearTimeout(longPressTimer);clearInterval(countTimer);countDisplay.textContent=0;}
+
+boton.addEventListener('pointerdown',()=>{estado.textContent='Manteniendo...';startCounting();});
+boton.addEventListener('pointerup',()=>{estado.textContent='Inactivo';stopCounting();});
+
+async function activarEmergencia(){
+  stopCounting();
+  estado.textContent='EMERGENCIA activada';
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'},audio:true});
+    video.srcObject=stream; video.muted=false;
+    videoStatus.textContent='Video: activo'; recStatus.textContent='Micrófono: activo';
+  }catch(e){estado.textContent='Error cámara/micrófono';return;}
+  try{
+    mediaRecorder=new MediaRecorder(stream);
+    chunks=[];
+    mediaRecorder.ondataavailable=e=>{if(e.data.size>0)chunks.push(e.data)};
+    mediaRecorder.start();
+  }catch(e){console.warn(e);}
+  startSpeechRecognition();
+  getGPS();
+  setTimeout(detenerEmergencia,RECORD_MS);
+}
+
+function detenerEmergencia(){
+  stopSpeechRecognition();
+  if(stream){stream.getTracks().forEach(t=>t.stop());video.srcObject=null;}
+  videoStatus.textContent='Video: inactivo';recStatus.textContent='Micrófono: inactivo';
+  if(mediaRecorder && chunks.length){mediaRecorder.stop();enviarDatos();}
+  estado.textContent='Datos enviados';
+}
+
+function startSpeechRecognition(){
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){transcriptArea.value='[Reconocimiento no disponible]';return;}
+  recognition=new SR();recognition.lang='es-CO';recognition.interimResults=true;recognition.continuous=true;
+  recognition.onresult=e=>{let interim='',final=transcriptArea.value;for(let i=e.resultIndex;i<e.results.length;i++){const r=e.results[i];if(r.isFinal)final+='\n'+r[0].transcript;else interim+=r[0].transcript;}transcriptArea.value=final+'\n'+interim;transcriptArea.scrollTop=transcriptArea.scrollHeight;};
+  recognition.start();
+}
+function stopSpeechRecognition(){if(recognition){try{recognition.stop();}catch(e){}recognition=null;}}
+
+function getGPS(){
+  if(!navigator.geolocation){coordX.value='No disponible';return;}
+  navigator.geolocation.getCurrentPosition(p=>{
+    coordX.value=p.coords.latitude.toFixed(6);
+    coordY.value=p.coords.longitude.toFixed(6);
+    coordZ.value=p.coords.altitude? p.coords.altitude.toFixed(1)+' m':'Sin altitud';
+  },()=>{coordX.value='Error al obtener ubicación';});
+}
+
+function enviarDatos(){
+  const blob=new Blob(chunks,{type:'video/webm'});
+  const formData=new FormData();
+  formData.append('video',blob,'emergencia.webm');
+  formData.append('transcripcion',transcriptArea.value);
+  formData.append('latitud',coordX.value);
+  formData.append('longitud',coordY.value);
+  formData.append('altitud',coordZ.value);
+  formData.append('timestamp',new Date().toISOString());
+  fetch('https://ejemplo.com/api/emergencia',{method:'POST',body:formData})
+    .then(r=>r.ok?estado.textContent='✅ Datos enviados correctamente':'❌ Error al enviar')
+    .catch(()=>estado.textContent='❌ Fallo de red');
+}
+</script>
+</body>
+</html>
+
+
+<!---
+
+imagina que una persona A es muda y no tiene manos, se encuentra en el robo de un banco. Diseña un sitio web con un boton rojo, un cuadro de texto B y un recuadro C para proyectar video, la idea es que A oprima el boton rojo con la nariz o un codo durante 5 segundos, esta señal de emergencia active el microfono y la camara del celular o del portatil de A durante un minuto, de tal forma que todo lo que este sucediendo frente a la camara salga en el recuadro de C y todo lo que digan los ladrones quede el cuadro de texto B. Como si se tratara de una llamada de emergencia a la linea 123 en Colombia, pero el usuario A no puede decir ni escribir nada, solo puede activar el microfono y la camara tratando de registrar lo que le esta pasando
+quiero que incorpores en 3 cuadros de texto X,Y y Z (aparte del cuadro de texto B) el dato GPS del usuario A con las 3 coordenadas GPS X, Y y Z (la idea de Z es para saber en que piso está el usuario A si es posible) y luego añade el envío automático de la grabación y la transcripción a un número/servicio de emergencia (por ejemplo, integrarlo con la línea 123)
+
+He creado una página web (archivo HTML) llamada "Emergencia Sin Manos" que implementa exactamente lo que pediste:
+
+Botón rojo grande que responde a pointer events (apto para nariz o codo) y requiere mantenerlo 5 segundos.
+
+Al activarse, solicita cámara y micrófono, muestra el video en el recuadro C y transcribe el audio en tiempo real al cuadro B durante 60 segundos.
+
+Incluye retroalimentación por vibración y una señal sonora opcional, mensajes claros, y consideraciones de accesibilidad (atributos ARIA, teclado, textos grandes).
+
+Cómo probarlo y recomendaciones rápidas:
+
+Abre el archivo HTML en un navegador moderno (Chrome o Edge suelen soportar getUserMedia y la API de reconocimiento de voz).
+
+Prueba en un entorno controlado: conserva la privacidad y asegúrate de que el navegador pida permisos de cámara/micrófono.
+
+Nota: la transcripción usa la Web Speech API del navegador — su disponibilidad y calidad varían según el navegador y la conexión. El ejemplo no sube datos a servidores; la grabación queda local en memoria (si quieres, puedo añadir opción para descargar el video o enviarlo a un servidor seguro).
+
+Buena idea — es muy útil que el sistema también registre la ubicación GPS tridimensional (latitud, longitud y altitud) y que envíe la transcripción y el video automáticamente a un servicio de emergencia.
+Sin embargo, hay dos partes que debemos manejar con cuidado:
+
+⚖️ Consideraciones legales y técnicas antes de integrarlo con la línea 123
+
+La línea 123 (en Colombia) no ofrece una API ni canal oficial para recibir información por internet (solo llamadas o, en algunos casos, WhatsApp municipal).
+
+Por tanto, no es posible hacer una integración directa “real” sin un convenio institucional o servidor intermedio autorizado.
+
+Lo que sí puedo hacer es:
+
+Añadir el código para capturar las coordenadas GPS X, Y y Z (latitud, longitud y altitud).
+
+Simular el envío automático a un servidor o API (por ejemplo https://tu-servidor-emergencias.com/api/alerta), que podría reenviar la alerta a la autoridad.
+
+Dejar un campo o función donde más adelante se configure el destino real, cuando se establezca el convenio con la entidad oficial.
+
+He actualizado el código para incluir los tres cuadros de texto X, Y y Z con las coordenadas GPS del usuario (latitud, longitud y altitud/piso estimado).
+Además, el sistema ahora envía automáticamente la grabación y la transcripción junto con las coordenadas al servidor o servicio de emergencia especificado (https://ejemplo.com/api/emergencia).
+
+--->

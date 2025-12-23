@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Botón de Emergencia - Accesible</title>
+  <style>
+    :root{--primary:#c62828;--bg:#fafafa;--card:#fff}
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial;margin:0;background:var(--bg);color:#111}
+    .page{max-width:900px;margin:20px auto;padding:18px}
+    h1{font-size:20px;margin:6px 0}
+    .instructions{background:#fff;border-left:6px solid var(--primary);padding:10px;border-radius:8px}
+
+    /* Layout */
+    .grid{display:grid;grid-template-columns:1fr;gap:14px;margin-top:14px}
+    @media(min-width:900px){.grid{grid-template-columns:360px 1fr}}
+
+    /* Red big button */
+    .big-btn{width:100%;height:140px;border-radius:14px;background:var(--primary);color:#fff;border:6px solid #8b1f1f;display:flex;align-items:center;justify-content:center;font-size:28px;cursor:pointer;touch-action:none}
+    .big-btn:active{transform:scale(.995)}
+    .counter{font-weight:700;font-size:28px}
+
+    /* Video box C */
+    .video-box{background:var(--card);border-radius:12px;padding:10px;border:2px solid #ddd;display:flex;flex-direction:column;align-items:center}
+    video{width:100%;border-radius:10px;background:#000}
+
+    /* Text box B */
+    textarea{width:100%;min-height:120px;border-radius:10px;border:2px solid #ddd;padding:12px;font-size:16px;resize:vertical}
+
+    .status{font-size:14px;color:#444;margin-top:6px}
+    .small{font-size:13px;color:#666}
+
+    .controls{display:flex;gap:8px}
+    .ghost{background:transparent;border:1px solid #ccc;padding:8px 10px;border-radius:8px}
+  </style>
+</head>
+<body>
+  <div class="page">
+    <h1>Botón de Emergencia (Accesible para personas sin manos)</h1>
+    <div class="instructions">
+      <p><strong>Uso:</strong> Mantén presionado el botón rojo durante <strong>5 segundos</strong> con la nariz, el codo u otra parte del cuerpo. Tras esos 5 segundos se activarán la cámara y el micrófono durante <strong>60 segundos</strong>. El video en vivo aparecerá en el recuadro C y la transcripción aparece en el cuadro B.</p>
+      <p class="small">Funciona en navegadores modernos que permitan cámara y micrófono (getUserMedia) y reconocimiento de voz (Web Speech API). Prueba en un entorno seguro antes de usarlo en emergencias reales.</p>
+    </div>
+
+    <div class="grid">
+      <!-- Columna izquierda: Botón rojo y estado -->
+      <div>
+        <div id="botonWrap" aria-live="polite">
+          <div id="boton" class="big-btn" role="button" tabindex="0" aria-pressed="false" aria-label="Botón de emergencia. Mantén presionado 5 segundos">EMERGENCIA</div>
+          <div class="status" id="estado">Estado: inactivo</div>
+          <div class="status small">Indicador: <span id="countDisplay" class="counter">0</span> / 5 s</div>
+        </div>
+
+        <div style="margin-top:12px" class="controls">
+          <button id="vibrateToggle" class="ghost">Vibración: ON</button>
+          <button id="beepToggle" class="ghost">Señal sonora: OFF</button>
+        </div>
+
+        <div style="margin-top:12px" class="small">Nota: El botón responde a <em>pointer</em> events para que sea usable con la nariz o codos. También se soporta teclado (espacio/enter) para quien pueda usar otra parte del cuerpo con ayuda.</div>
+      </div>
+
+      <!-- Columna derecha: Video C y Texto B -->
+      <div>
+        <div class="video-box" aria-live="polite">
+          <label for="video" style="width:100%;text-align:left;font-weight:600">Recuadro C — Video en vivo</label>
+          <video id="video" playsinline autoplay muted></video>
+          <div class="status" id="videoStatus">Video: no activo</div>
+        </div>
+
+        <div style="margin-top:12px">
+          <label for="transcript" style="font-weight:600">Cuadro B — Transcripción (lo que dicen):</label>
+          <textarea id="transcript" readonly aria-live="polite" placeholder="Aquí aparecerá la transcripción"></textarea>
+          <div class="status" id="recStatus">Micrófono: inactivo</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top:14px" class="small">Detalles técnicos: Este ejemplo activa localmente cámara y micrófono y usa la API de reconocimiento de voz del navegador para transcribir. No sube automáticamente datos a servidores. Adaptarlo para enviar a una línea de emergencia requiere integrarlo con el servicio correspondiente y respetar las leyes de privacidad.</div>
+  </div>
+
+<script>
+// Parámetros
+const LONG_PRESS_MS = 5000; // 5 segundos para activar
+const RECORD_MS = 60000; // 60 segundos de grabación/monitor
+
+// Elementos
+const boton = document.getElementById('boton');
+const countDisplay = document.getElementById('countDisplay');
+const estado = document.getElementById('estado');
+const video = document.getElementById('video');
+const videoStatus = document.getElementById('videoStatus');
+const transcriptArea = document.getElementById('transcript');
+const recStatus = document.getElementById('recStatus');
+const vibrateToggle = document.getElementById('vibrateToggle');
+const beepToggle = document.getElementById('beepToggle');
+
+let pointerDownTime = null;
+let longPressTimer = null;
+let countTimer = null;
+let stream = null;
+let mediaRecorder = null;
+let chunks = [];
+let recognition = null;
+let vibrateOn = true;
+let beepOn = false;
+
+// Feedback sonoro breve
+function beep(){
+  if(!beepOn) return;
+  try{
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.type = 'sine'; o.frequency.value = 880;
+    g.gain.value = 0.1;
+    o.connect(g); g.connect(ctx.destination);
+    o.start();
+    setTimeout(()=>{ o.stop(); ctx.close(); },120);
+  }catch(e){ /* ignore */ }
+}
+
+vibrateToggle.onclick = () => { vibrateOn = !vibrateOn; vibrateToggle.textContent = `Vibración: ${vibrateOn? 'ON':'OFF'}`; };
+beepToggle.onclick = () => { beepOn = !beepOn; beepToggle.textContent = `Señal sonora: ${beepOn? 'ON':'OFF'}`; };
+
+// Manejo de conteo para la pulsación larga
+function startCounting(){
+  let t = 0;
+  countDisplay.textContent = t;
+  longPressTimer = setTimeout(()=>{
+    // Si llegó aquí, activamos emergencia
+    activarEmergencia();
+  }, LONG_PRESS_MS);
+  countTimer = setInterval(()=>{
+    t += 1; countDisplay.textContent = t;
+    if(vibrateOn && ('vibrate' in navigator)) navigator.vibrate(50);
+  }, 1000);
+}
+function stopCounting(){
+  clearTimeout(longPressTimer);
+  clearInterval(countTimer);
+  countDisplay.textContent = 0;
+}
+
+// Eventos pointer para nariz/codo/tocar
+boton.addEventListener('pointerdown', (e)=>{
+  e.preventDefault();
+  boton.setAttribute('aria-pressed','true');
+  estado.textContent = 'Manteniendo...';
+  pointerDownTime = Date.now();
+  startCounting();
+});
+
+function cancelarPresion(){
+  boton.setAttribute('aria-pressed','false');
+  stopCounting();
+  estado.textContent = 'Inactivo';
+}
+
+boton.addEventListener('pointerup', (e)=>{ cancelarPresion(); });
+boton.addEventListener('pointercancel', (e)=>{ cancelarPresion(); });
+
+// También soportamos teclado: espacio o Enter
+boton.addEventListener('keydown', (e)=>{
+  if(e.code === 'Space' || e.code === 'Enter'){
+    e.preventDefault();
+    boton.dispatchEvent(new PointerEvent('pointerdown'));
+  }
+});
+boton.addEventListener('keyup', (e)=>{
+  if(e.code === 'Space' || e.code === 'Enter'){
+    e.preventDefault();
+    boton.dispatchEvent(new PointerEvent('pointerup'));
+  }
+});
+
+// Activar emergencia: abrir cámara y micrófono y transcribir
+async function activarEmergencia(){
+  stopCounting();
+  estado.textContent = 'EMERGENCIA activada';
+  beep();
+  if(vibrateOn && ('vibrate' in navigator)) navigator.vibrate([200,100,200]);
+
+  // Solicitar permisos y obtener stream
+  try{
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: true });
+    video.srcObject = stream;
+    video.muted = false; // ya que queremos oír
+    videoStatus.textContent = 'Video: activo';
+    recStatus.textContent = 'Micrófono: activo';
+  }catch(err){
+    estado.textContent = 'Error: no se pudo acceder a cámara/micrófono';
+    return;
+  }
+
+  // Iniciar grabación local (opcional, aquí la guardamos en memoria)
+  try{
+    mediaRecorder = new MediaRecorder(stream);
+    chunks = [];
+    mediaRecorder.ondataavailable = e => { if(e.data && e.data.size) chunks.push(e.data); };
+    mediaRecorder.start();
+  }catch(e){ console.warn('MediaRecorder no disponible', e); }
+
+  // Iniciar reconocimiento de voz si está disponible
+  startSpeechRecognition();
+
+  // Parar todo tras RECORD_MS
+  setTimeout(()=>{ detenerEmergencia(); }, RECORD_MS);
+}
+
+function detenerEmergencia(){
+  // Detener reconocimiento
+  stopSpeechRecognition();
+
+  // Detener tracks
+  if(stream){
+    stream.getTracks().forEach(t=>t.stop());
+    video.srcObject = null;
+    videoStatus.textContent = 'Video: inactivo';
+    recStatus.textContent = 'Micrófono: inactivo';
+  }
+
+  // Guardar grabación localmente (opcional — no se sube automáticamente)
+  if(mediaRecorder && chunks.length){
+    mediaRecorder.stop();
+    const blob = new Blob(chunks, { type: 'video/webm' });
+    // Si deseas permitir descarga automática en dispositivo:
+    // const url = URL.createObjectURL(blob);
+    // const a = document.createElement('a'); a.href = url; a.download = 'emergencia.webm'; a.click(); URL.revokeObjectURL(url);
+  }
+
+  estado.textContent = 'Inactivo';
+}
+
+// Reconocimiento de voz (Web Speech API)
+function startSpeechRecognition(){
+  transcriptArea.value = '';
+  // Compatibilidad: window.SpeechRecognition || window.webkitSpeechRecognition
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(!SpeechRecognition){
+    transcriptArea.value = '[Reconocimiento de voz no soportado en este navegador]';
+    return;
+  }
+  recognition = new SpeechRecognition();
+  recognition.lang = 'es-CO';
+  recognition.interimResults = true;
+  recognition.continuous = true; // intentamos mantenerlo durante el minuto
+
+  recognition.onstart = () => { console.log('SpeechRecognition started'); };
+  recognition.onerror = (e) => { console.warn('SpeechRecognition error', e); };
+  recognition.onend = () => { console.log('SpeechRecognition ended'); };
+  recognition.onresult = (event) => {
+    let interim = '';
+    let final = transcriptArea.value;
+    for(let i = event.resultIndex; i < event.results.length; ++i){
+      const res = event.results[i];
+      if(res.isFinal){
+        final += (final? '\n' : '') + res[0].transcript;
+      } else {
+        interim += res[0].transcript;
+      }
+    }
+    transcriptArea.value = final + (interim? '\n' + interim : '');
+    // Mantener scroll abajo
+    transcriptArea.scrollTop = transcriptArea.scrollHeight;
+  };
+  try{ recognition.start(); }catch(e){ console.warn('No se pudo iniciar recognition', e); }
+}
+function stopSpeechRecognition(){
+  if(recognition){
+    try{ recognition.stop(); }catch(e){}
+    recognition = null;
+  }
+}
+
+// Seguridad: si la pestaña se oculta, detener para ahorrar recursos
+document.addEventListener('visibilitychange', ()=>{
+  if(document.hidden){ /* opcional: detenerEmergencia(); */ }
+});
+
+// Mensaje de ayuda rápida en carga
+window.addEventListener('load', ()=>{
+  estado.textContent = 'Inactivo';
+});
+
+</script>
+</body>
+</html>
