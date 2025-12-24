@@ -27,6 +27,16 @@
 
   .cUp{			z-index:0}
 
+ .circo{
+
+  /* Imagen dentro del círculo */
+  background-image: url('files/pcuid.png');/*'files/chatico.png');*/
+  background-size: cover;
+  background-position: center;
+  /*background-color: var(--cbw22);/*var(--cbw2);*/
+}
+
+
 
 .circulo {
   aspect-ratio: 1 / 1.5; /* mantiene el círculo */
