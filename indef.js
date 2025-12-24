@@ -6680,8 +6680,8 @@ function f0109()//hh89 QUITAR la presentación
 
 
 			//mostrar a chatico..
-			yBBo.style.backgroundImage = "url('files/chatico.png')";
-			yBBo.style.border = "2px solid var(--cblwh1)";
+			//yBBo.style.backgroundImage = "url('files/chatico.png')";
+			//yBBo.style.border = "2px solid var(--cblwh1)";
 
 
 			iPreAV.innerHTML = '';
@@ -6734,7 +6734,7 @@ function f0112()//hh92 ACTIVAR el manejador de marquesinas handleMarquee() - tom
 
 
 			//ocultar a chatico..
-			yBBo.style.backgroundImage = "none";
+			//yBBo.style.backgroundImage = "none";
 			yBBo.style.border = "none";
 
 
