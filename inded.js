@@ -2558,13 +2558,13 @@ const vPAPA4 = [['2-id:key strings app', 0, '4-IdPapa3', '5-Id color marco', '6-
 //Prohibidos id 1 y 2, próximo id = vPAPA#.length + 5
 const vPAPA5 = [['2-id:key strings app', 0, '4-IdPapa4', '5-Id color marco', '6-id logo', '7-idImagen', '8-idMapa', '9-ID QR CODE', '0-En ingles(lista ordenada)', '5/10-Español', '6/11-frances', '7/12-coreano'],
 //   1  2  3   4  5   6  7  8  9 10 11 12 13 14 15 16 17  18     ..19..  20..  21.. 
-[ 8, 3, 9, 3, 52, 5, 52, 5, 0, 9, 0, 1, 2, 2, 2, 0, 0, 1, 'Catalonia neighborhood', 'barrio Cataluña', 'quartier Catalogne', '카탈로니아 인근'],//1 ->8
-[ 9, 4, 9, 3, 53, 5, 53, 5, 0, 9, 0, 1, 2, 2, 2, 0, 0, 1, 'Central Chapinero neighborhood', 'barrio Chapinero Central', 'quartier Central de Chapinero', '중앙 차피네로 지역'],
-[10, 5, 9, 3, 54, 5, 54, 5, 0, 9, 0, 1, 2, 2, 2, 0, 0, 1, 'North Chapinero neighborhood', 'barrio Chapinero Norte', 'quartier Nord de Chapinero', '노스 차피네로 인근'],
-[11, 6, 9, 3, 55, 5, 55, 5, 0, 9, 0, 1, 2, 2, 2, 0, 0, 1, 'Marly neighborhood', 'barrio Marly', 'quartier Marneux', '말리 동네'],
-[ 7, 7, 9, 3, 56, 5, 56, 5, 0, 9, 0, 1, 2, 2, 2, 0, 0, 1, 'Porciuncula neighborhood', 'barrio Porciúncula', 'quartier Porciuncula', '포르시운쿨라 인근'],
-[ 6, 8, 9, 3, 57, 5, 57, 5, 0, 9, 0, 1, 2, 2, 2, 0, 0, 1, 'Quinta Camacho neighborhood', 'barrio Quinta Camacho', 'quartier Quinta Camacho', '퀸타 카마초 인근'],
-[12, 9, 9, 3, 58, 5, 58, 5, 0, 9, 0, 1, 2, 2, 2, 0, 0, 1, 'Sucre neighborhood', 'barrio Sucre', 'quartier Sucré', '수크레 동네']
+[ 8, 3, 9, 3, 52, 5, 52, 5, 0, 9, 0, 1, 2, 2, 2, 0, 0, 1, '+ Catalonia neighborhood', '+ barrio Cataluña', 'quartier Catalogne', '카탈로니아 인근'],//1 ->8
+[ 9, 4, 9, 3, 53, 5, 53, 5, 0, 9, 0, 1, 2, 2, 2, 0, 0, 1, '+ Central Chapinero neighborhood', '+ barrio Chapinero Central', 'quartier Central de Chapinero', '중앙 차피네로 지역'],
+[10, 5, 9, 3, 54, 5, 54, 5, 0, 9, 0, 1, 2, 2, 2, 0, 0, 1, '+ North Chapinero neighborhood', '+ barrio Chapinero Norte', 'quartier Nord de Chapinero', '노스 차피네로 인근'],
+[11, 6, 9, 3, 55, 5, 55, 5, 0, 9, 0, 1, 2, 2, 2, 0, 0, 1, '+ Marly neighborhood', '+ barrio Marly', 'quartier Marneux', '말리 동네'],
+[ 7, 7, 9, 3, 56, 5, 56, 5, 0, 9, 0, 1, 2, 2, 2, 0, 0, 1, '+ Porciuncula neighborhood', '+ barrio Porciúncula', 'quartier Porciuncula', '포르시운쿨라 인근'],
+[ 6, 8, 9, 3, 57, 5, 57, 5, 0, 9, 0, 1, 2, 2, 2, 0, 0, 1, '+ Quinta Camacho neighborhood', '+ barrio Quinta Camacho', 'quartier Quinta Camacho', '퀸타 카마초 인근'],
+[12, 9, 9, 3, 58, 5, 58, 5, 0, 9, 0, 1, 2, 2, 2, 0, 0, 1, '+ Sucre neighborhood', '+ barrio Sucre', 'quartier Sucré', '수크레 동네']
 ]
 
 //Prohibidos id 1 y 2, próximo id = vPAPA#.length + 5
